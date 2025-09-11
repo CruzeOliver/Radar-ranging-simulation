@@ -8,14 +8,14 @@ Fs = 7.14e6;        % 采样频率
 T_chirp = 98e-6;    % Chirp周期
 Bw = 3000e6;        % 雷达带宽
 N = 256;            % FFT点数
-f_true = 3777000;   % 真实频率
+f_true = 628000;   % 真实频率408000
 n_monte = 1000;     % Monte Carlo仿真次数
 M = 32;             % Chirp-Z点数
 B_fft_res = Fs / N; % FFT的分辨率
 
 
 %% 2. 定义仿真范围与结果存储
-SNR_dB_range = -4:1:16; % 信噪比（dB）范围
+SNR_dB_range = -5:1:20; % 信噪比（dB）范围
 n_snr_points = length(SNR_dB_range);
 
 % 初始化MSE记录矩阵，每一行对应一个SNR点
@@ -55,6 +55,22 @@ for i = 1:n_snr_points
         X_fft = fft(s_noisy);
         [~, k_fft_peak] = max(abs(X_fft));
         f_fft_peak = (k_fft_peak - 1) * Fs / N;
+        
+         %% Step 2: Chirp-Z变换 (CZT)
+        % Macleod算法得到的频率作为CZT的搜索中心
+        f_start = f_fft_peak - B_fft_res / 2;
+        f_step = B_fft_res / M;
+        f_axis = f_start + (0:M-1) * f_step;
+        w = exp(-1j * 2 * pi * f_step / Fs);
+        a = exp(1j * 2 * pi * f_start / Fs);
+        X_czt = czt(s_noisy, M, w, a);
+        [~, k_czt_peak] = max(abs(X_czt));
+        
+        % 确保索引在有效范围内
+        k_czt_peak = max(2, min(k_czt_peak, length(X_czt)-1));
+        
+        % 仅用峰值位置估计频率
+        f_czt_peak_only = f_axis(k_czt_peak);
 
         %% Step 1: Macleod算法
         [f_macleod, ~, ~] = macleod_algorithm(s_noisy, Fs, N);
@@ -73,7 +89,7 @@ for i = 1:n_snr_points
         k_czt_peak = max(2, min(k_czt_peak, length(X_czt)-1));
         
         % 仅用峰值位置估计频率
-        f_czt_peak_only = f_axis(k_czt_peak);
+        %f_czt_peak_only = f_axis(k_czt_peak);
         
         %% Step 3: CZT二次插值
         mag_km1 = abs(X_czt(k_czt_peak - 1));

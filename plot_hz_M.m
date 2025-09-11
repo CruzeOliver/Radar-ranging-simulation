@@ -8,7 +8,7 @@ Fs = 7.14e6;        % 采样频率
 T_chirp = 98e-6;    % Chirp周期
 Bw = 3000e6;        % 雷达带宽
 N = 256;            % FFT点数
-f_true = 3777000;   % 固定真实频率
+f_true = 628000;   % 固定真实频率
 SNR_dB = 5;         % 固定信噪比
 n_monte = 1000;     % Monte Carlo仿真次数
 B_fft_res = Fs / N; % FFT的分辨率
@@ -22,7 +22,7 @@ fprintf('在SNR = %d dB下的CRLB频率下界为：%.6f Hz^2\n', SNR_dB, crlb_fr
 
 %% 2. 定义仿真范围与结果存储
 % CZT点数变化范围
-M_range = 16:8:256; % 从16到256，步长为16
+M_range = 32:8:256; % 从32到256，步长为16
 n_m_points = length(M_range);
 
 % 初始化MSE记录矩阵
@@ -52,10 +52,13 @@ for i = 1:n_m_points
         s_noisy = s * sqrt(snr_linear) + noise;
 
         %% Step 1: Macleod算法
+        X_fft = fft(s_noisy);
+        [~, k_fft_peak] = max(abs(X_fft));
+        f_fft_peak = (k_fft_peak - 1) * Fs / N;
         [f_macleod, ~, ~] = macleod_algorithm(s_noisy, Fs, N);
         
-        %% Step 2: Chirp-Z变换 (CZT)
-        f_start = f_macleod - B_fft_res / 2;
+        %% Step 2-1: Chirp-Z变换 (FFT-CZT)
+        f_start = f_fft_peak - B_fft_res / 2;
         f_step = B_fft_res / current_M; % 步长随M变化
         w = exp(-1j * 2 * pi * f_step / Fs);
         a = exp(1j * 2 * pi * f_start / Fs);
@@ -65,6 +68,18 @@ for i = 1:n_m_points
         k_czt_peak = max(2, min(k_czt_peak, length(X_czt)-1));
         
         f_czt_peak_only = f_start + (k_czt_peak-1) * f_step;
+        
+        %% Step 2-2: Chirp-Z变换 (FFT-CZT)
+        f_start = f_macleod - B_fft_res / 2;
+        f_step = B_fft_res / current_M; % 步长随M变化
+        w = exp(-1j * 2 * pi * f_step / Fs);
+        a = exp(1j * 2 * pi * f_start / Fs);
+        X_czt = czt(s_noisy, current_M, w, a);
+        [~, k_czt_peak] = max(abs(X_czt));
+        
+        k_czt_peak = max(2, min(k_czt_peak, length(X_czt)-1));
+        
+        %f_czt_peak_only = f_start + (k_czt_peak-1) * f_step;
         
         %% Step 3: CZT二次插值
         mag_km1 = abs(X_czt(k_czt_peak - 1));
