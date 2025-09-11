@@ -24,7 +24,7 @@ crlb_freq_theory = 1 / (2 * pi^2 * snr_linear * (M / B)^2);
 fprintf('在SNR = %d dB下的CRLB频率下界为：%.6f Hz^2\n', SNR_dB, crlb_freq_theory);
 %% 2. 定义仿真范围与结果存储
 % 真实频率变化范围
-f_true_range = 408000:25000:1020000;
+f_true_range = 408000:18500:820000;
 n_freq_points = length(f_true_range);
 
 % 初始化MSE记录矩阵
@@ -61,8 +61,8 @@ for i = 1:n_freq_points
         %% Step 1: Macleod算法
         [f_macleod, ~, ~] = macleod_algorithm(s_noisy, Fs, N);
 
-        %% Step 2: Chirp-Z变换 (CZT)
-        f_start = f_macleod - B_fft_res / 2;
+        %% Step 2: FFT Chirp-Z变换 
+        f_start = f_fft_peak - B_fft_res / 2;
         f_step = B_fft_res / M;
         w = exp(-1j * 2 * pi * f_step / Fs);
         a = exp(1j * 2 * pi * f_start / Fs);
@@ -72,6 +72,18 @@ for i = 1:n_freq_points
         k_czt_peak = max(2, min(k_czt_peak, length(X_czt)-1));
         
         f_czt_peak_only = f_start + (k_czt_peak-1) * f_step;
+        
+        %% Step 2-2:  Macleod Chirp-Z变换 (CZT)
+        f_start = f_macleod - B_fft_res / 2;
+        f_step = B_fft_res / M;
+        w = exp(-1j * 2 * pi * f_step / Fs);
+        a = exp(1j * 2 * pi * f_start / Fs);
+        X_czt = czt(s_noisy, M, w, a);
+        [~, k_czt_peak] = max(abs(X_czt));
+        
+        k_czt_peak = max(2, min(k_czt_peak, length(X_czt)-1));
+        
+        %f_czt_peak_only = f_start + (k_czt_peak-1) * f_step;
         
         %% Step 3: CZT二次插值
         mag_km1 = abs(X_czt(k_czt_peak - 1));
@@ -105,8 +117,8 @@ hold on;
 % 使用semilogy绘制半对数曲线
 semilogy(f_true_range, mse_fft_peak, 'r-o', 'DisplayName', 'FFT');
 semilogy(f_true_range, mse_macleod, 'b-^', 'DisplayName', 'Macleod');
-semilogy(f_true_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT峰值');
-semilogy(f_true_range, mse_czt_quad, 'k-d', 'DisplayName', 'CZT二次插值');
+semilogy(f_true_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT');
+semilogy(f_true_range, mse_czt_quad, 'k-d', 'DisplayName', 'Macleod-CZT');
 yline(crlb_freq_theory, 'm--', 'DisplayName', 'CRLB'); % CRLB是一条水平线
 
 xlabel('真实频率 (Hz)');
@@ -121,13 +133,13 @@ hold off;
 figure;
 hold on;
 % 绘制CZT峰值和二次插值的曲线
-semilogy(f_true_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT峰值');
-semilogy(f_true_range, mse_czt_quad, 'k-d', 'DisplayName', 'CZT二次插值');
+semilogy(f_true_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT');
+semilogy(f_true_range, mse_czt_quad, 'k-d', 'DisplayName', 'Macleod-CZT');
 yline(crlb_freq_theory, 'm--', 'DisplayName', 'CRLB'); % CRLB是一条水平线
 
 xlabel('真实频率 (Hz)');
 ylabel('均方误差 (MSE) [Hz^2]');
-title('CZT峰值与CZT二次插值性能局部放大对比');
+title('CZT与Macleod-CZT性能局部放大对比');
 legend('show');
 grid on;
 box on;
