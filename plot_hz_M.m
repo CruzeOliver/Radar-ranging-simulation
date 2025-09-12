@@ -22,7 +22,7 @@ fprintf('在SNR = %d dB下的CRLB频率下界为：%.6f Hz^2\n', SNR_dB, crlb_fr
 
 %% 2. 定义仿真范围与结果存储
 % CZT点数变化范围
-M_range = 32:8:256; % 从32到256，步长为16
+M_range = 32:8:256; % 从32到256，步长为8
 n_m_points = length(M_range);
 
 % 初始化MSE记录矩阵
@@ -110,8 +110,8 @@ end
 figure;
 hold on;
 % 绘制CZT峰值和二次插值的曲线
-semilogy(M_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT峰值');
-semilogy(M_range, mse_czt_quad, 'k-d', 'DisplayName', 'CZT二次插值');
+semilogy(M_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT');
+semilogy(M_range, mse_czt_quad, 'k-d', 'DisplayName', 'Macleod-CZT');
 semilogy(M_range, crlb_freq_theory, 'm--', 'DisplayName', 'CRLB');
 %yline(crlb_freq_theory, 'm--', 'DisplayName', 'CRLB'); % CRLB是一条水平线
 

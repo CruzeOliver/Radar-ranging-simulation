@@ -123,8 +123,8 @@ hold on;
 % 使用semilogy绘制半对数曲线，更清晰
 semilogy(SNR_dB_range, mse_fft_peak, 'r-o', 'DisplayName', 'FFT');
 semilogy(SNR_dB_range, mse_macleod, 'b-^', 'DisplayName', 'Macleod');
-semilogy(SNR_dB_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT峰值');
-semilogy(SNR_dB_range, mse_czt_quad, 'k-d', 'DisplayName', 'CZT二次插值');
+semilogy(SNR_dB_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT');
+semilogy(SNR_dB_range, mse_czt_quad, 'k-d', 'DisplayName', 'Macleod-CZT');
 semilogy(SNR_dB_range, crlb_freq_theory, 'm--', 'DisplayName', 'CRLB');
 
 xlabel('信噪比 (SNR) [dB]');
@@ -140,8 +140,8 @@ figure;
 hold on;
 
 % 绘制CZT峰值和二次插值的曲线
-semilogy(SNR_dB_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT峰值');
-semilogy(SNR_dB_range, mse_czt_quad, 'k-d', 'DisplayName', 'CZT二次插值');
+semilogy(SNR_dB_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT');
+semilogy(SNR_dB_range, mse_czt_quad, 'k-d', 'DisplayName', 'Macleod-CZT');
 semilogy(SNR_dB_range, crlb_freq_theory, 'm--', 'DisplayName', 'CRLB');
 
 xlabel('信噪比 (SNR) [dB]');
