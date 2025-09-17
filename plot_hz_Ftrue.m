@@ -19,7 +19,7 @@ snr_linear = 10^(SNR_dB / 10);
 % 计算理论CRLB（此值在整个仿真中为常数）
 %crlb_freq_theory = (3 * Fs^2) / (2 * pi^2 * N^3 * snr_linear);
 
-B = 2 * B_fft_res;  % CZT 带宽，例如设为 2 个 FFT bin
+B = 1 * B_fft_res;  % CZT 带宽，例如设为 2 个 FFT bin
 crlb_freq_theory = 1 / (2 * pi^2 * snr_linear * (M / B)^2);
 fprintf('在SNR = %d dB下的CRLB频率下界为：%.6f Hz^2\n', SNR_dB, crlb_freq_theory);
 %% 2. 定义仿真范围与结果存储
@@ -115,35 +115,54 @@ figure;
 hold on;
 
 % 使用semilogy绘制半对数曲线
-semilogy(f_true_range, mse_fft_peak, 'r-o', 'DisplayName', 'FFT');
-semilogy(f_true_range, mse_macleod, 'b-^', 'DisplayName', 'Macleod');
-semilogy(f_true_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT');
-semilogy(f_true_range, mse_czt_quad, 'k-d', 'DisplayName', 'Macleod-CZT');
-yline(crlb_freq_theory, 'm--', 'DisplayName', 'CRLB'); % CRLB是一条水平线
+semilogy(f_true_range, mse_fft_peak, 'r-o', 'DisplayName', 'FFT', 'LineWidth', 2);
+semilogy(f_true_range, mse_macleod, 'b-^', 'DisplayName', 'Macleod', 'LineWidth', 2);
+semilogy(f_true_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT', 'LineWidth', 2);
+semilogy(f_true_range, mse_czt_quad, 'k-d', 'DisplayName', 'Macleod-CZT', 'LineWidth', 2);
+yline(crlb_freq_theory, 'm--', 'DisplayName', 'CRLB', 'LineWidth', 2); % CRLB是一条水平线
 
-xlabel('真实频率 (Hz)');
-ylabel('均方误差 (MSE) [Hz^2]');
-title(sprintf('不同算法的均方误差 (MSE) 对比 (SNR=%d dB)', SNR_dB));
+xlabel('True frequency (Hz)', 'FontSize', 20);
+ylabel('MSE (Hz^2)', 'FontSize', 20);
+%title(sprintf('不同算法的均方误差 (MSE) 对比 (SNR=%d dB)', SNR_dB));
 legend('show');
 grid on;
 box on;
 hold off;
+
+%---
+% 获取当前图表的坐标轴句柄
+ax = gca;
+% 调整坐标轴线条颜色和粗细
+ax.XColor = 'k';  % 将X轴颜色设置为黑色
+ax.YColor = 'k';  % 将Y轴颜色设置为黑色
+ax.LineWidth = 1.5; % 设置坐标轴线条粗细
+ax.FontSize = 20;   % <--- 这里是新增的代码，设置刻度字体大小
+
 
 % 创建新的图窗进行局部放大
 figure;
 hold on;
 % 绘制CZT峰值和二次插值的曲线
-semilogy(f_true_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT');
-semilogy(f_true_range, mse_czt_quad, 'k-d', 'DisplayName', 'Macleod-CZT');
-yline(crlb_freq_theory, 'm--', 'DisplayName', 'CRLB'); % CRLB是一条水平线
+semilogy(f_true_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT', 'LineWidth', 2);
+semilogy(f_true_range, mse_czt_quad, 'k-d', 'DisplayName', 'Macleod-CZT', 'LineWidth', 2);
+yline(crlb_freq_theory, 'm--', 'DisplayName', 'CRLB', 'LineWidth', 2); % CRLB是一条水平线
 
-xlabel('真实频率 (Hz)');
-ylabel('均方误差 (MSE) [Hz^2]');
-title('CZT与Macleod-CZT性能局部放大对比');
+xlabel('True frequency (Hz)', 'FontSize', 20);
+ylabel('MSE (Hz^2)', 'FontSize', 20);
+%title('CZT与Macleod-CZT性能局部放大对比');
 legend('show');
 grid on;
 box on;
 hold off;
+
+%---
+% 获取当前图表的坐标轴句柄
+ax = gca;
+% 调整坐标轴线条颜色和粗细
+ax.XColor = 'k';
+ax.YColor = 'k';
+ax.LineWidth = 1.2;
+ax.FontSize = 20;   % <--- 同样在这里也加上
 
 %% Macleod算法函数 (保持不变)
 function [f_est, delta, peak_mag] = macleod_algorithm(x, Fs, N)

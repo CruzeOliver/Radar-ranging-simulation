@@ -17,8 +17,8 @@ B_fft_res = Fs / N; % FFT的分辨率
 snr_linear = 10^(SNR_dB / 10);
 
 % 计算理论CRLB（此值在整个仿真中为常数，不随M变化）
-crlb_freq_theory = (3 * Fs^2) / (2 * pi^2 * N^3 * snr_linear);
-fprintf('在SNR = %d dB下的CRLB频率下界为：%.6f Hz^2\n', SNR_dB, crlb_freq_theory);
+%crlb_freq_theory = (3 * Fs^2) / (2 * pi^2 * N^3 * snr_linear);
+%fprintf('在SNR = %d dB下的CRLB频率下界为：%.6f Hz^2\n', SNR_dB, crlb_freq_theory);
 
 %% 2. 定义仿真范围与结果存储
 % CZT点数变化范围
@@ -35,7 +35,7 @@ crlb_freq_theory = zeros(n_m_points, 1);
 % 外层循环：遍历不同的CZT点数
 for i = 1:n_m_points
     current_M = M_range(i);
-    B = 2 * B_fft_res;  % CZT 带宽，例如设为 2 个 FFT bin
+    B = 1 * B_fft_res;  % CZT 带宽，例如设为 2 个 FFT bin
     crlb_freq_theory(i) = 1 / (2 * pi^2 * snr_linear * (current_M / B)^2);
     
     % 初始化当前M值下的临时误差记录数组
@@ -105,23 +105,31 @@ for i = 1:n_m_points
 end
 
 %% 4. 绘制结果
-
 % 创建新的图窗进行局部放大
 figure;
 hold on;
-% 绘制CZT峰值和二次插值的曲线
-semilogy(M_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT');
-semilogy(M_range, mse_czt_quad, 'k-d', 'DisplayName', 'Macleod-CZT');
-semilogy(M_range, crlb_freq_theory, 'm--', 'DisplayName', 'CRLB');
-%yline(crlb_freq_theory, 'm--', 'DisplayName', 'CRLB'); % CRLB是一条水平线
 
-xlabel('CZT点数 (M)');
-ylabel('均方误差 (MSE) [Hz^2]');
-title('CZT峰值与CZT二次插值性能局部放大对比');
+% 绘制CZT峰值和二次插值的曲线
+semilogy(M_range, mse_czt_peak_only, 'g-s', 'DisplayName', 'CZT', 'LineWidth', 2);
+semilogy(M_range, mse_czt_quad, 'k-d', 'DisplayName', 'Macleod-CZT', 'LineWidth', 2);
+semilogy(M_range, crlb_freq_theory, 'm--', 'DisplayName', 'CRLB', 'LineWidth', 2);
+
+xlabel('Number of CZT', 'FontSize', 20);
+ylabel('MSE(Hz^2)', 'FontSize', 20);
+%title('CZT峰值与CZT二次插值性能局部放大对比', 'FontSize', 20);
 legend('show');
 grid on;
 box on;
 hold off;
+
+%---
+% 获取当前图表的坐标轴句柄
+ax = gca;
+% 调整坐标轴线条颜色和粗细
+ax.XColor = 'k'; % 将X轴颜色设置为黑色
+ax.YColor = 'k'; % 将Y轴颜色设置为黑色
+ax.LineWidth = 1.2; % 设置坐标轴线条粗细
+ax.FontSize = 20; % 设置刻度字体大小
 
 %% Macleod算法函数 (保持不变)
 function [f_est, delta, peak_mag] = macleod_algorithm(x, Fs, N)
