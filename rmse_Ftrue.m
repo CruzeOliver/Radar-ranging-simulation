@@ -1,0 +1,188 @@
+clear;
+close all;
+clc;
+
+%% 1. 参数设置
+c = 3e8; % 光速
+Fs = 7.14e6; % 采样频率
+T_chirp = 98e-6; % Chirp周期
+Bw = 3000e6; % 雷达带宽
+N = 256; % FFT点数
+SNR_dB = 5; % 固定信噪比
+n_monte = 1000; % Monte Carlo仿真次数
+M = 32; % Chirp-Z点数
+B_fft_res = Fs / N; % FFT的分辨率
+
+% 转换线性信噪比
+snr_linear = 10^(SNR_dB / 10);
+
+% 计算理论CRLB（频率的最小方差下界，即MSE的CRLB）
+B = 1 * B_fft_res; 
+crlb_freq_theory_mse = 3 *Fs^2 / (8 * pi^2 * snr_linear * (M^3 + N^3)); 
+
+% 将CRLB（MSE形式）开方，得到RMSE的CRLB
+crlb_freq_theory_rmse = sqrt(crlb_freq_theory_mse);
+fprintf('在SNR = %d dB下的CRLB频率下界 (RMSE) 为：%.6f Hz\n', SNR_dB, crlb_freq_theory_rmse);
+
+%% 2. 定义仿真范围与结果存储
+% 真实频率变化范围
+f_true_range = 150000:18500:820000;
+n_freq_points = length(f_true_range);
+
+% 初始化RMSE记录矩阵
+rmse_fft_peak = zeros(n_freq_points, 1);
+rmse_macleod = zeros(n_freq_points, 1);
+rmse_czt_peak_only = zeros(n_freq_points, 1);
+rmse_czt_quad = zeros(n_freq_points, 1);
+
+
+%% 3. 蒙特卡洛仿真主循环
+% 外层循环：遍历不同的真实频率
+for i = 1:n_freq_points
+    current_f_true = f_true_range(i);
+    
+    % 初始化当前频率下的临时误差记录数组 (记录的是平方误差)
+    temp_mse_fft = zeros(n_monte, 1);
+    temp_mse_macleod = zeros(n_monte, 1);
+    temp_mse_czt_peak_only = zeros(n_monte, 1);
+    temp_mse_czt_quad = zeros(n_monte, 1);
+    
+    % 内层循环：在当前频率下重复n_monte次仿真
+    for monte = 1:n_monte
+        % 生成含噪声信号
+        t = (0:N-1)' / Fs;
+        s = exp(1j * 2 * pi * current_f_true * t);
+        noise = (randn(size(t)) + 1j * randn(size(t))) / sqrt(2);
+        s_noisy = s * sqrt(snr_linear) + noise;
+        
+        %% Step 0: FFT频率估计
+        X_fft = fft(s_noisy);
+        [~, k_fft_peak] = max(abs(X_fft));
+        f_fft_peak = (k_fft_peak - 1) * Fs / N;
+
+        %% Step 1: Macleod算法
+        [f_macleod, ~, ~] = macleod_algorithm(s_noisy, Fs, N);
+
+        %% Step 2: FFT Chirp-Z变换 (CZT)
+        % 以FFT峰值点为中心，选择一个FFT bin作为CZT的分析带宽
+        f_start = f_fft_peak - B_fft_res / 2; 
+        f_step = B_fft_res / M;
+        w = exp(-1j * 2 * pi * f_step / Fs);
+        a = exp(1j * 2 * pi * f_start / Fs);
+        X_czt = czt(s_noisy, M, w, a);
+        [~, k_czt_peak] = max(abs(X_czt));
+        
+        % 防止索引越界
+        k_czt_peak = max(2, min(k_czt_peak, length(X_czt)-1));
+        
+        f_czt_peak_only = f_start + (k_czt_peak-1) * f_step;
+        
+        %% Step 2-2: Macleod-CZT (以Macleod结果为中心)
+        % 以Macleod结果为中心，进行更精确的CZT
+        f_start_macleod = f_macleod - B_fft_res / 2;
+        f_step_macleod = B_fft_res / M;
+        w_macleod = exp(-1j * 2 * pi * f_step_macleod / Fs);
+        a_macleod = exp(1j * 2 * pi * f_start_macleod / Fs);
+        X_czt_macleod = czt(s_noisy, M, w_macleod, a_macleod);
+        [~, k_czt_peak_macleod] = max(abs(X_czt_macleod));
+        
+        % 防止索引越界
+        k_czt_peak_macleod = max(2, min(k_czt_peak_macleod, length(X_czt_macleod)-1));
+        
+        
+        %% Step 3: Macleod-CZT二次插值
+        mag_km1 = abs(X_czt_macleod(k_czt_peak_macleod - 1));
+        mag_k0  = abs(X_czt_macleod(k_czt_peak_macleod));
+        mag_kp1 = abs(X_czt_macleod(k_czt_peak_macleod + 1));
+        denom = mag_km1 - 2 * mag_k0 + mag_kp1;
+        delta_czt_quad = 0;
+        if denom ~= 0
+            delta_czt_quad = 0.5 * (mag_km1 - mag_kp1) / denom;
+        end
+        f_czt_quad = f_start_macleod + (k_czt_peak_macleod - 1 + delta_czt_quad) * f_step_macleod;
+        
+        %% 记录当前迭代的频率平方误差 (MSE)
+        temp_mse_fft(monte) = (f_fft_peak - current_f_true)^2;
+        temp_mse_macleod(monte) = (f_macleod - current_f_true)^2;
+        temp_mse_czt_peak_only(monte) = (f_czt_peak_only - current_f_true)^2;
+        temp_mse_czt_quad(monte) = (f_czt_quad - current_f_true)^2;
+    end
+    
+    % 计算当前频率下的平均平方误差(MSE)，并开方得到RMSE，存入主矩阵
+    rmse_fft_peak(i) = sqrt(mean(temp_mse_fft));
+    rmse_macleod(i) = sqrt(mean(temp_mse_macleod));
+    rmse_czt_peak_only(i) = sqrt(mean(temp_mse_czt_peak_only));
+    rmse_czt_quad(i) = sqrt(mean(temp_mse_czt_quad));
+end
+
+%% 4. 绘制结果
+figure;
+hold on;
+
+% 使用semilogy绘制半对数曲线
+semilogy(f_true_range, rmse_fft_peak, 'r-o', 'DisplayName', 'FFT', 'LineWidth', 2);
+semilogy(f_true_range, rmse_macleod, 'b-^', 'DisplayName', 'Macleod', 'LineWidth', 2);
+semilogy(f_true_range, rmse_czt_peak_only, 'g-s', 'DisplayName', 'CZT', 'LineWidth', 2);
+semilogy(f_true_range, rmse_czt_quad, 'k-d', 'DisplayName', 'Macleod-CZT', 'LineWidth', 2);
+yline(crlb_freq_theory_rmse, 'm--', 'DisplayName', 'CRLB', 'LineWidth', 2); % CRLB是一条水平线
+
+xlabel('True frequency (Hz)', 'FontSize', 20);
+ylabel('RMSE (Hz)', 'FontSize', 20);
+legend('show');
+grid on;
+box on;
+hold off;
+
+%---
+% 获取当前图表的坐标轴句柄
+ax = gca;
+ax.XColor = 'k'; 
+ax.YColor = 'k'; 
+ax.LineWidth = 1.5; 
+ax.FontSize = 20; 
+
+
+% 创建新的图窗进行局部放大
+figure;
+hold on;
+% 绘制CZT峰值和二次插值的曲线
+semilogy(f_true_range, rmse_czt_peak_only, 'g-s', 'DisplayName', 'CZT', 'LineWidth', 2);
+semilogy(f_true_range, rmse_czt_quad, 'k-d', 'DisplayName', 'Macleod-CZT', 'LineWidth', 2);
+yline(crlb_freq_theory_rmse, 'm--', 'DisplayName', 'CRLB', 'LineWidth', 2); % CRLB是一条水平线
+
+xlabel('True frequency (Hz)', 'FontSize', 20);
+ylabel('RMSE (Hz)', 'FontSize', 20); 
+legend('show');
+grid on;
+box on;
+hold off;
+
+%---
+% 获取当前图表的坐标轴句柄
+ax = gca;
+ax.XColor = 'k';
+ax.YColor = 'k';
+ax.LineWidth = 1.2;
+ax.FontSize = 20;
+
+%% Macleod算法函数 (保持不变)
+function [f_est, delta, peak_mag] = macleod_algorithm(x, Fs, N)
+    X = fft(x);
+    X_abs_sq = abs(X).^2;
+    [~, k0] = max(X_abs_sq); 
+    k0 = k0(1);
+    
+    k0 = max(2, min(k0, N-1));
+    
+    X_km1 = X_abs_sq(k0-1); 
+    X_k0 = X_abs_sq(k0); 
+    X_kp1 = X_abs_sq(k0+1);
+    
+    denom = X_km1 - 2*X_k0 + X_kp1;
+    delta = 0;
+    if denom ~= 0
+        delta = (X_km1 - X_kp1)/(2*denom);
+    end
+    f_est = (k0 - 1 + delta)*Fs/N;
+    peak_mag = abs(X(k0));
+end
