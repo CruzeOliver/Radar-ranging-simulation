@@ -20,11 +20,12 @@ snr_linear = 10^(SNR_dB / 10);
 %crlb_freq_theory = (3 * Fs^2) / (2 * pi^2 * N^3 * snr_linear);
 
 B = 1 * B_fft_res;  % CZT 带宽，例如设为 2 个 FFT bin
-crlb_freq_theory = 1 / (2 * pi^2 * snr_linear * (M / B)^2);
-fprintf('在SNR = %d dB下的CRLB频率下界为：%.6f Hz^2\n', SNR_dB, crlb_freq_theory);
+%crlb_freq_theory = 1 / (2 * pi^2 * snr_linear * (M / B)^2);
+crlb_freq_theory =  3 *Fs^2 / (8 * pi^2 * snr_linear * (M^3 + N^3));
+fprintf('在SNR = %d dB下的CRLB频率下界为：%.6f Hz^2\n', SNR_dB, crlb_freq_theory); 
 %% 2. 定义仿真范围与结果存储
 % 真实频率变化范围
-f_true_range = 408000:18500:820000;
+f_true_range = 150000:18500:820000;
 n_freq_points = length(f_true_range);
 
 % 初始化MSE记录矩阵
@@ -104,7 +105,12 @@ for i = 1:n_freq_points
     end
     
     % 计算当前频率下的平均MSE，并存入主矩阵
-    mse_fft_peak(i) = mean(temp_mse_fft);
+%     mse_fft_peak(i) =sqrt(mean(temp_mse_fft));
+%     mse_macleod(i) = sqrt(mean(temp_mse_macleod));
+%     mse_czt_peak_only(i) = sqrt(mean(temp_mse_czt_peak_only));
+%     mse_czt_quad(i) = sqrt(mean(temp_mse_czt_quad));
+    
+    mse_fft_peak(i) =mean(temp_mse_fft);
     mse_macleod(i) = mean(temp_mse_macleod);
     mse_czt_peak_only(i) = mean(temp_mse_czt_peak_only);
     mse_czt_quad(i) = mean(temp_mse_czt_quad);

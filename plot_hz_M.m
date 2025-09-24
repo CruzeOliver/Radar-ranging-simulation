@@ -22,7 +22,7 @@ snr_linear = 10^(SNR_dB / 10);
 
 %% 2. 定义仿真范围与结果存储
 % CZT点数变化范围
-M_range = 32:8:256; % 从32到256，步长为8
+M_range = 16:8:256; % 从32到256，步长为8
 n_m_points = length(M_range);
 
 % 初始化MSE记录矩阵
@@ -36,7 +36,8 @@ crlb_freq_theory = zeros(n_m_points, 1);
 for i = 1:n_m_points
     current_M = M_range(i);
     B = 1 * B_fft_res;  % CZT 带宽，例如设为 2 个 FFT bin
-    crlb_freq_theory(i) = 1 / (2 * pi^2 * snr_linear * (current_M / B)^2);
+    %crlb_freq_theory(i) = 1 / (2 * pi^2 * snr_linear * (current_M / B)^2);
+     crlb_freq_theory(i) =  3 *Fs^2 / (8 * pi^2 * snr_linear * (current_M^3 + N^3));
     
     % 初始化当前M值下的临时误差记录数组
     temp_mse_macleod = zeros(n_monte, 1);

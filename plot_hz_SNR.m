@@ -34,7 +34,8 @@ for i = 1:n_snr_points
     % 计算当前SNR下的CRLB理论值
     %crlb_freq_theory(i) = (3 * Fs^2) / (2 * pi^2 * N^3 * snr_linear);
     B = 1 * B_fft_res;  % CZT 带宽，例如设为 2 个 FFT bin
-    crlb_freq_theory(i) = 1 / (2 * pi^2 * snr_linear * (M / B)^2);
+    %crlb_freq_theory(i) = 1 / (2 * pi^2 * snr_linear * (M / B)^2);
+    crlb_freq_theory(i) =  3 *Fs^2 / (8 * pi^2 * snr_linear * (M^3 + N^3));
     %fprintf('在SNR = %d dB下的CRLB频率下界为：%.6f Hz^2\n', SNR_dB, crlb_freq_theory);
     
     % 初始化当前SNR下的临时误差记录数组
