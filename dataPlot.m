@@ -1,57 +1,49 @@
-%% 清空环境
-clc; clear; close all;
+% 清除工作区
+clear; clc; close all;
 
-%% 1. 读取CSV文件
-filename = "D:\code\python\Andar_UDP_PY\0916岸达测\2920.csv"; 
+% 读取CSV文件，保留原始列名
+F_true = 239148;
+filename = "D:\code\python\Andar_UDP_PY\0923计量测\1124.csv";
+data = readtable(filename, 'VariableNamingRule', 'preserve');
 
-% 读取数据（包含表头）
-data = readtable(filename);
+% 提取频率数据（注意：含连字符的列名要用 data.('ColName') 方式访问）
+fft_freq     = data.('FFT-fre');
+macleod_freq = data.('Macleod-fre');
+ctz_freq     = data.('CTZ-fre');
+mctz_freq    = data.('MCTZ-fre');
 
-% 提取第3-6列（四种算法的测距值），去掉单位 "m"
-distance_data = data{:, 3:6};
-if iscell(distance_data)   % 如果是单元格，先转成数字
-    distance_data = str2double(erase(distance_data, "m"));
-end
+% 提取索引（横轴）
+index = data.index;
 
-%% 2. 定义真实距离
-real_distance = 2.920; % 单位：米
-real_distance_vector = repmat(real_distance, size(distance_data,1), 1);
+% 创建图形
+figure;
+hold on;  % 保持所有曲线在同一图中
 
-%% 3. 计算绝对误差（mm）
-error_fft         = abs(distance_data(:,1) - real_distance_vector) * 1000; % mm
-error_macleod     = abs(distance_data(:,2) - real_distance_vector) * 1000;
-error_czt         = abs(distance_data(:,3) - real_distance_vector) * 1000;
-error_macleod_czt = abs(distance_data(:,4) - real_distance_vector) * 1000;
+% 绘制四条曲线，使用您指定的样式
+plot(index, fft_freq,     'r-o', 'DisplayName', 'FFT',     'LineWidth', 2);
+plot(index, macleod_freq, 'b-^', 'DisplayName', 'Macleod', 'LineWidth', 2);
+plot(index, ctz_freq,     'g-s', 'DisplayName', 'CZT',     'LineWidth', 2);
+plot(index, mctz_freq,    'k-d', 'DisplayName', 'MCZT',    'LineWidth', 2);
 
-% 合并误差矩阵
-error_matrix = [error_fft, error_macleod, error_czt, error_macleod_czt];
+plot([min(index), max(index)], [F_true, F_true], 'm--', 'LineWidth', 2, 'DisplayName', 'True Frequency');
 
-%% 4. 绘制误差曲线，统一线条和符号
-figure('Name','绝对误差 (mm)','Color','w');
+% 添加标题和坐标轴标签
+title('Frequency Estimation Comparison Over Time', 'FontSize', 14, 'FontWeight', 'bold');
+xlabel('Index', 'FontSize', 12);
+ylabel('Frequency (Hz)', 'FontSize', 12);
 
-% 每条曲线设置不同的线条样式和标记
-markers = {'-o','-^','-s','-d'};  % 红色圆圈、蓝色三角形、绿色方块、黑色菱形
-h = gobjects(4,1);
-h(1) = plot(error_matrix(:,1), 'r-o', 'LineWidth', 2, 'DisplayName', 'FFT');
-hold on;
-h(2) = plot(error_matrix(:,2), 'b-^', 'LineWidth', 2, 'DisplayName', 'Macleod');
-h(3) = plot(error_matrix(:,3), 'g-s', 'LineWidth', 2, 'DisplayName', 'CZT');
-h(4) = plot(error_matrix(:,4), 'k-d', 'LineWidth', 2, 'DisplayName', 'Macleod-CZT');
+% 添加图例（根据 DisplayName 显示）
+legend('show', 'Location', 'best', 'FontSize', 11);
 
-% 设置标题和坐标轴
-%title('绝对误差 (mm)','FontSize',14);
-xlabel('Measurement number','FontSize',12);
-ylabel('Distance offset (mm)','FontSize',12);
-
-% 设置y轴范围（自动收紧到数据范围附近，留一些边距）
-emin = min(error_matrix(:),[],'omitnan'); 
-emax = max(error_matrix(:),[],'omitnan');
-pad = max(0.05*(emax-emin), 0.5);  % 至少留0.5mm的边距
-ylim([emin-pad, emax+pad]);
-
-% 图例
-legend(h, {'FFT', 'Macleod', 'CZT', 'Macleod-CZT'}, 'Location','southoutside','Orientation','horizontal');
-
+% 添加网格（增强可读性）
 grid on;
+grid minor;  % 显示细网格
 
-disp('✅ 绝对误差曲线绘制完成 (单位: mm)');
+% 可选：设置坐标轴外观
+set(gca, 'FontSize', 10);
+% xlim([min(index) max(index)]);  % 横轴范围
+% ylim([416000 418500]);          % 可根据数据范围手动设置纵轴（可选）
+
+% 美化布局
+set(gcf, 'Position', [100, 100, 900, 500]);  % 设置窗口大小
+hold off;
