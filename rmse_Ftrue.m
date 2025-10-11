@@ -165,6 +165,20 @@ ax.YColor = 'k';
 ax.LineWidth = 1.2;
 ax.FontSize = 20;
 
+%% 5. 导出结果到CSV文件
+
+% 创建一个包含所有结果的数据表
+results = table(f_true_range', rmse_fft_peak, rmse_macleod, rmse_czt_peak_only, rmse_czt_quad, 'VariableNames', {'True_Frequency_Hz', 'RMSE_FFT_Hz', 'RMSE_Macleod_Hz', 'RMSE_CZT_Peak_Only_Hz', 'RMSE_Macleod_CZT_Hz'});
+
+% 定义输出文件路径和名称
+output_file_path = 'frequency_estimation_results.csv';
+
+% 将结果写入CSV文件
+writetable(results, output_file_path);
+
+disp(['仿真结果已成功保存至: ', output_file_path]);
+
+
 %% Macleod算法函数 (保持不变)
 function [f_est, delta, peak_mag] = macleod_algorithm(x, Fs, N)
     X = fft(x);
@@ -186,3 +200,4 @@ function [f_est, delta, peak_mag] = macleod_algorithm(x, Fs, N)
     f_est = (k0 - 1 + delta)*Fs/N;
     peak_mag = abs(X(k0));
 end
+
