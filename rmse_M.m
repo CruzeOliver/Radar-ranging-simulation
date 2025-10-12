@@ -132,6 +132,30 @@ ax.YColor = 'k';
 ax.LineWidth = 1.5; 
 ax.FontSize = 20; 
 
+%% 5. 导出数据为 CSV 文件 ✅ 新增部分
+% 创建表格，包含所有结果
+results_table = table(...
+    M_range', ...                         % CZT点数
+    rmse_czt_peak_only, ...              % FFT-CZT RMSE
+    rmse_czt_quad, ...                   % Macleod-CZT (二次插值) RMSE
+    crlb_freq_theory_rmse, ...           % 理论CRLB RMSE
+    'VariableNames', {...
+        'M_CZT_Points', ...
+        'RMSE_FFT_CZT_Hz', ...
+        'RMSE_Macleod_CZT_Hz', ...
+        'CRLB_RMSE_Hz' ...
+    }...
+);
+
+% 指定输出文件名
+filename = 'M_vs_RMSE_results.csv';
+
+% 写入CSV文件
+writetable(results_table, filename, 'WriteRowNames', false);
+
+% 显示提示信息
+disp(['✅ 仿真完成，数据已保存至: ', pwd, '/', filename]);
+
 %% Macleod算法函数 (保持不变)
 function [f_est, delta, peak_mag] = macleod_algorithm(x, Fs, N)
     X = fft(x);
