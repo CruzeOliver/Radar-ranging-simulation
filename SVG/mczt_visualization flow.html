@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCZT Algorithm Flow - Editable SVG</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+        .button-group {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1em;
+            cursor: pointer;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        .svg-container {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            overflow-x: auto;
+        }
+        svg {
+            width: 100%;
+            height: auto;
+            min-width: 1400px;
+        }
+        text {
+            cursor: text;
+            user-select: none;
+        }
+        text:hover {
+            fill: #667eea;
+        }
+        .instruction {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+        .instruction p {
+            color: #666;
+            line-height: 1.6;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MCZT Algorithm Flow Diagram</h1>
+
+        <div class="button-group">
+            <button onclick="downloadSVG()">📥 Download SVG</button>
+            <button onclick="editMode()">✏️ Edit Text Mode</button>
+            <button onclick="resetDiagram()">🔄 Reset</button>
+        </div>
+
+        <div class="svg-container">
+            <svg id="main-svg" viewBox="0 0 1500 400" xmlns="http://www.w3.org/2000/svg">
+                <!-- Background -->
+                <rect width="1500" height="400" fill="white"/>
+
+                <!-- Step 1: FFT -->
+                <g id="step1">
+                    <rect x="20" y="50" width="320" height="280" fill="#f0f8ff" stroke="#667eea" stroke-width="2" rx="10"/>
+                    <text x="180" y="80" text-anchor="middle" font-size="16" font-weight="bold" fill="#667eea" class="editable">Step 1: FFT Coarse Localization</text>
+
+                    <!-- FFT bars -->
+                    <g id="fft-bars"></g>
+
+                    <!-- True frequency line -->
+                    <line x1="195" y1="120" x2="195" y2="280" stroke="red" stroke-width="2" stroke-dasharray="5,5"/>
+                    <circle cx="195" cy="120" r="5" fill="red"/>
+
+                    <!-- Axes -->
+                    <line x1="60" y1="280" x2="300" y2="280" stroke="black" stroke-width="1.5"/>
+                    <line x1="60" y1="280" x2="60" y2="100" stroke="black" stroke-width="1.5"/>
+
+                    <!-- Labels -->
+                    <text x="180" y="310" text-anchor="middle" font-size="12" fill="#333" class="editable">Frequency</text>
+                    <text x="40" y="190" text-anchor="middle" font-size="12" fill="#333" transform="rotate(-90 40 190)" class="editable">Magnitude</text>
+                    <text x="195" y="110" text-anchor="middle" font-size="10" fill="red" class="editable">FFT peak</text>
+                </g>
+
+                <!-- Arrow 1 -->
+                <g>
+                    <line x1="340" y1="190" x2="380" y2="190" stroke="#333" stroke-width="2"/>
+                    <polygon points="380,190 370,185 370,195" fill="#333"/>
+                </g>
+
+                <!-- Step 2: Macleod Coarse -->
+                <g id="step2">
+                    <rect x="400" y="50" width="320" height="280" fill="#fffbf0" stroke="#fdb462" stroke-width="2" rx="10"/>
+                    <text x="560" y="80" text-anchor="middle" font-size="16" font-weight="bold" fill="#e17055" class="editable">Step 2: Macleod Coarse</text>
+
+                    <!-- Three bars -->
+                    <rect x="460" y="180" width="50" height="100" fill="#ffd93d" opacity="0.8"/>
+                    <rect x="530" y="140" width="50" height="140" fill="#fdcb6e" opacity="0.9"/>
+                    <rect x="600" y="200" width="50" height="80" fill="#ffd93d" opacity="0.8"/>
+
+                    <!-- Parabola -->
+                    <path d="M 485 180 Q 555 120 625 200" stroke="#e17055" stroke-width="2.5" fill="none"/>
+
+                    <!-- Interpolated point -->
+                    <circle cx="550" cy="125" r="5" fill="red"/>
+                    <line x1="550" y1="125" x2="550" y2="280" stroke="red" stroke-width="1.5" stroke-dasharray="3,3"/>
+
+                    <!-- Axes -->
+                    <line x1="440" y1="280" x2="680" y2="280" stroke="black" stroke-width="1.5"/>
+                    <line x1="440" y1="280" x2="440" y2="100" stroke="black" stroke-width="1.5"/>
+
+                    <!-- Labels -->
+                    <text x="560" y="310" text-anchor="middle" font-size="12" fill="#333" class="editable">Frequency Bins</text>
+                    <text x="485" y="295" text-anchor="middle" font-size="11" fill="#666" class="editable">k-1</text>
+                    <text x="555" y="295" text-anchor="middle" font-size="11" fill="#666" class="editable">k</text>
+                    <text x="625" y="295" text-anchor="middle" font-size="11" fill="#666" class="editable">k+1</text>
+                    <text x="565" y="115" text-anchor="middle" font-size="10" fill="red" class="editable">Macleod Peak</text>
+                </g>
+
+                <!-- Arrow 2 -->
+                <g>
+                    <line x1="720" y1="190" x2="760" y2="190" stroke="#333" stroke-width="2"/>
+                    <polygon points="760,190 750,185 750,195" fill="#333"/>
+                </g>
+
+                <!-- Step 3: CZT -->
+                <g id="step3">
+                    <rect x="780" y="50" width="320" height="280" fill="#f0fff4" stroke="#00b894" stroke-width="2" rx="10"/>
+                    <text x="940" y="80" text-anchor="middle" font-size="16" font-weight="bold" fill="#00b894" class="editable">Step 3: CZT Refinement</text>
+
+                    <!-- CZT bars -->
+                    <g id="czt-bars"></g>
+
+                    <!-- Peak marker -->
+                    <circle cx="961" cy="120" r="5" fill="red"/>
+                    <line x1="961" y1="120" x2="961" y2="280" stroke="red" stroke-width="1.5" stroke-dasharray="3,3"/>
+
+                    <!-- Axes -->
+                    <line x1="820" y1="280" x2="1060" y2="280" stroke="black" stroke-width="1.5"/>
+                    <line x1="820" y1="280" x2="820" y2="100" stroke="black" stroke-width="1.5"/>
+
+                    <!-- Labels -->
+                    <text x="940" y="310" text-anchor="middle" font-size="12" fill="#333" class="editable">High Resolution Freq</text>
+                    <text x="960" y="110" text-anchor="middle" font-size="10" fill="red" class="editable">CZT Peak</text>
+                </g>
+
+                <!-- Arrow 3 -->
+                <g>
+                    <line x1="1100" y1="190" x2="1140" y2="190" stroke="#333" stroke-width="2"/>
+                    <polygon points="1140,190 1130,185 1130,195" fill="#333"/>
+                </g>
+
+                <!-- Step 4: Macleod Fine -->
+                <g id="step4">
+                    <rect x="1160" y="50" width="320" height="280" fill="#fff5f0" stroke="#e17055" stroke-width="2" rx="10"/>
+                    <text x="1320" y="80" text-anchor="middle" font-size="16" font-weight="bold" fill="#d63031" class="editable">Step 4: Macleod Fine</text>
+
+                    <!-- Five bars -->
+                    <rect x="1210" y="160" width="40" height="120" fill="#ff9a76" opacity="0.8"/>
+                    <rect x="1260" y="140" width="40" height="140" fill="#ff9a76" opacity="0.8"/>
+                    <rect x="1310" y="120" width="40" height="160" fill="#e17055" opacity="0.9"/>
+                    <rect x="1360" y="140" width="40" height="140" fill="#ff9a76" opacity="0.8"/>
+                    <rect x="1410" y="160" width="40" height="120" fill="#ff9a76" opacity="0.8"/>
+
+                    <!-- Fine parabola -->
+                    <path d="M 1230 160 Q 1330 100 1430 160" stroke="#764ba2" stroke-width="2.5" fill="none"/>
+
+                    <!-- Final point -->
+                    <circle cx="1340" cy="105" r="6" fill="red" stroke="white" stroke-width="2"/>
+                    <line x1="1340" y1="105" x2="1340" y2="280" stroke="red" stroke-width="1.5" stroke-dasharray="3,3"/>
+
+                    <!-- Axes -->
+                    <line x1="1200" y1="280" x2="1460" y2="280" stroke="black" stroke-width="1.5"/>
+                    <line x1="1200" y1="280" x2="1200" y2="100" stroke="black" stroke-width="1.5"/>
+
+                    <!-- Labels -->
+                    <text x="1330" y="310" text-anchor="middle" font-size="12" fill="#333" class="editable">CZT Bins</text>
+                    <text x="1340" y="95" text-anchor="middle" font-size="11" fill="red" font-weight="bold" class="editable">MCZT peak</text>
+                </g>
+            </svg>
+        </div>
+
+        <div class="instruction">
+            <p><strong>📝 How to edit:</strong></p>
+            <p>1. Click "Edit Text Mode" button to enable editing</p>
+            <p>2. Click on any text in the diagram to edit it directly</p>
+            <p>3. Press Enter to confirm or Esc to cancel</p>
+            <p>4. Click "Download SVG" to save your customized diagram</p>
+        </div>
+    </div>
+
+    <script>
+        let editingEnabled = false;
+
+        // Generate FFT bars
+        function generateFFTBars() {
+            const container = document.getElementById('fft-bars');
+            container.innerHTML = '';
+            const barCount = 24;
+            const startX = 60;
+            const width = 240;
+            const barWidth = width / barCount;
+            const peakIndex = 13;
+
+            for (let i = 0; i < barCount; i++) {
+                const barHeight = Math.max(8, 150 * Math.exp(-Math.pow(i - peakIndex, 2) / 18));
+                const x = startX + i * barWidth;
+                const y = 280 - barHeight;
+
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', x + 1);
+                rect.setAttribute('y', y);
+                rect.setAttribute('width', barWidth - 2);
+                rect.setAttribute('height', barHeight);
+                rect.setAttribute('fill', i === peakIndex ? '#667eea' : '#a8edea');
+                rect.setAttribute('opacity', '0.8');
+                container.appendChild(rect);
+            }
+        }
+
+        // Generate CZT bars
+        function generateCZTBars() {
+            const container = document.getElementById('czt-bars');
+            container.innerHTML = '';
+            const barCount = 28;
+            const startX = 820;
+            const width = 240;
+            const barWidth = width / barCount;
+            const peakIndex = 16;
+
+            for (let i = 0; i < barCount; i++) {
+                const barHeight = Math.max(8, 160 * Math.exp(-Math.pow(i - peakIndex, 2) / 15));
+                const x = startX + i * barWidth;
+                const y = 280 - barHeight;
+
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', x + 0.5);
+                rect.setAttribute('y', y);
+                rect.setAttribute('width', barWidth - 1);
+                rect.setAttribute('height', barHeight);
+                rect.setAttribute('fill', i === peakIndex ? '#00b894' : '#6bcf7f');
+                rect.setAttribute('opacity', '0.8');
+                container.appendChild(rect);
+            }
+        }
+
+        // Enable text editing
+        function editMode() {
+            editingEnabled = !editingEnabled;
+            const texts = document.querySelectorAll('text.editable');
+
+            if (editingEnabled) {
+                texts.forEach(text => {
+                    text.style.cursor = 'pointer';
+                    text.addEventListener('click', makeEditable);
+                });
+                alert('✏️ Edit mode enabled! Click on any text to edit it.');
+            } else {
+                texts.forEach(text => {
+                    text.style.cursor = 'text';
+                    text.removeEventListener('click', makeEditable);
+                });
+                alert('👁️ View mode enabled.');
+            }
+        }
+
+        function makeEditable(event) {
+            const textElement = event.target;
+            const originalText = textElement.textContent;
+            const newText = prompt('Edit text:', originalText);
+
+            if (newText !== null && newText !== '') {
+                textElement.textContent = newText;
+            }
+        }
+
+        // Download SVG
+        function downloadSVG() {
+            const svg = document.getElementById('main-svg');
+            const serializer = new XMLSerializer();
+            let source = serializer.serializeToString(svg);
+
+            if (!source.match(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)) {
+                source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+            }
+            if (!source.match(/^<svg[^>]+"http:\/\/www\.w3\.org\/1999\/xlink"/)) {
+                source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+            }
+
+            source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
+
+            const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "MCZT_Algorithm_Flow.svg";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Reset diagram
+        function resetDiagram() {
+            if (confirm('Are you sure you want to reset the diagram?')) {
+                location.reload();
+            }
+        }
+
+        // Initialize
+        generateFFTBars();
+        generateCZTBars();
+    </script>
+</body>
+</html>
