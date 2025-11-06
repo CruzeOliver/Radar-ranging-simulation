@@ -5,12 +5,12 @@ clc;
 %% 1. 参数设置
 c = 3e8; % 光速
 Fs = 7.14e6; % 采样频率
-T_chirp = 98e-6; % Chirp周期
+T_chirp = 104e-6; % Chirp周期
 Bw = 3000e6; % 雷达带宽
 N = 256; % FFT点数
 f_true = 628000; % 固定真实频率
 SNR_dB = 5; % 固定信噪比
-n_monte = 10000; % Monte Carlo仿真次数
+n_monte = 3000; % Monte Carlo仿真次数
 B_fft_res = Fs / N; % FFT的分辨率
 
 % 转换线性信噪比
@@ -19,7 +19,7 @@ snr_linear = 10^(SNR_dB / 10);
 
 %% 2. 定义仿真范围与结果存储
 % CZT点数变化范围
-M_range = 16:16:256; % 从16到256，步长为8
+M_range = 16:16:512; % 从16到256，步长为8
 n_m_points = length(M_range);
 
 % 初始化RMSE记录矩阵
