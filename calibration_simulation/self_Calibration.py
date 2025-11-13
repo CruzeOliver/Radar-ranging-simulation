@@ -19,7 +19,7 @@ ILS_ITERATIONS = 15
 ILS_TOLERANCE = 1e-6
 
 # 蒙特卡洛仿真次数
-N_MONTE_CARLO = 200               # 为使曲线平滑，每个数据点运行50次取平均
+N_MONTE_CARLO = 10               # 为使曲线平滑，每个数据点运行50次取平均
 np.random.seed(0)                   # 固定随机种子
 
 # --- 2. 物理参数 ---
@@ -177,7 +177,7 @@ def calibrate_ils(Kappa_noisy, K, L, d_tx, d_rx, lambda_c, verbose=False):
             phi_new[i] = simple_doa_estimator(Kappa_calibrated[:, i], M, K, L, d_tx, d_rx, lambda_c)
 
         # ✅ 修正点5：平滑更新防止抖动
-        #phi_ils = 0.8 * phi_ils + 0.2 * phi_new
+        phi_ils = 0.8 * phi_ils + 0.2 * phi_new
         error_tx = norm(gamma_tx_new - gamma_tx_ils) / norm(gamma_tx_ils)
         error_rx = norm(gamma_rx_new - gamma_rx_ils) / norm(gamma_rx_ils)
 
