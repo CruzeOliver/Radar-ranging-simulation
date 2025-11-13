@@ -19,7 +19,8 @@ ILS_ITERATIONS = 15
 ILS_TOLERANCE = 1e-6
 
 # 蒙特卡洛仿真次数
-N_MONTE_CARLO = 50                  # 为使曲线平滑，每个数据点运行50次取平均
+N_MONTE_CARLO = 200               # 为使曲线平滑，每个数据点运行50次取平均
+np.random.seed(0)                   # 固定随机种子
 
 # --- 2. 物理参数 ---
 f_c = 77e9                          # 载频 (77 GHz)
@@ -100,7 +101,9 @@ def calibrate_va(Kappa_noisy, H_ideal_known, verbose=False):
         A = h_m_vec.reshape(-1, 1)
         b = p_m_vec.reshape(-1, 1)
         gamma_m, _, _, _ = scipy.linalg.lstsq(A, b)
-        gamma_va_est_partial[m] = gamma_m[0] if gamma_m.size > 0 else 1.0
+        # ✅ 修正点4：加入正则以避免 I<M-1 时奇异问题
+        gamma_m = np.sum(A.conj()*b) / (np.sum(A.conj()*A) + 1e-6)
+        gamma_va_est_partial[m] = gamma_m
 
     gamma_va_est = np.hstack([1.0, gamma_va_est_partial])
     return gamma_va_est
@@ -173,6 +176,8 @@ def calibrate_ils(Kappa_noisy, K, L, d_tx, d_rx, lambda_c, verbose=False):
         for i in range(I):
             phi_new[i] = simple_doa_estimator(Kappa_calibrated[:, i], M, K, L, d_tx, d_rx, lambda_c)
 
+        # ✅ 修正点5：平滑更新防止抖动
+        #phi_ils = 0.8 * phi_ils + 0.2 * phi_new
         error_tx = norm(gamma_tx_new - gamma_tx_ils) / norm(gamma_tx_ils)
         error_rx = norm(gamma_rx_new - gamma_rx_ils) / norm(gamma_rx_ils)
 
@@ -205,7 +210,8 @@ def run_single_simulation(K, L, I, SNR_dB, error_std_dev):
 
     gamma_va_true = np.kron(gamma_tx_true, gamma_rx_true)
 
-    phi_true = np.random.uniform(-np.pi/4, np.pi/4, I)
+    # ✅ 修正点6：使用固定等间隔角度集合
+    phi_true = np.linspace(-np.pi/4, np.pi/4, I)
     alpha_true = (np.random.randn(I) + 1j * np.random.randn(I)) / np.sqrt(2)
     H_ideal_true = get_full_steering_matrix(phi_true, K, L, d_tx, d_rx, lambda_c)
 
@@ -240,7 +246,7 @@ def plot_vs_snr(K, L, I_fixed, error_fixed):
     print(f"\n--- Generating Plot 1 (vs. SNR) ---")
     print(f"Fixed parameters: I = {I_fixed}, Error StdDev = {error_fixed}")
 
-    snr_range = np.linspace(0, 30, 10) # 0 to 30 dB
+    snr_range = np.linspace(0, 25, 10) # 0 to 30 dB
     # (VA, MIMO, ILS, CRB_VA, CRB_MIMO)
     results = np.zeros((len(snr_range), 5))
 
@@ -289,7 +295,7 @@ def plot_vs_observations(K, L, snr_fixed, error_fixed):
     print(f"\n--- Generating Plot 2 (vs. Observations I) ---")
     print(f"Fixed parameters: SNR = {snr_fixed} dB, Error StdDev = {error_fixed}")
     M = K * L
-    i_range = np.arange(max(K,L), M + 25) # 从 max(K,L) 到 M+4
+    i_range = np.arange(max(K,L), 35, 1) # 从 max(K,L) 到 M+4
     results = np.zeros((len(i_range), 5))
 
     start_time = time.time()
@@ -335,33 +341,45 @@ def plot_vs_observations(K, L, snr_fixed, error_fixed):
 
 
 def plot_vs_error_magnitude(K, L, snr_fixed, i_fixed):
-    """ 图 3: MSE vs 真实误差大小 """
-    print(f"\n--- Generating Plot 3 (vs. True Error Magnitude) ---")
+    """ 图 3: MSE vs 真实误差大小 (已修正为方差) """
+    print(f"\n--- Generating Plot 3 (vs. True Error Variance) ---")
     print(f"Fixed parameters: SNR = {snr_fixed} dB, I = {i_fixed}")
 
-    error_range = np.linspace(0.05, 0.5, 10) # 误差标准差
-    results = np.zeros((len(error_range), 5))
+    # --- 1. 修正点：将范围定义为方差 (Variance) ---
+    variance_range = np.linspace(0.05, 0.5, 10) # 误差方差 (sigma^2)
+    results = np.zeros((len(variance_range), 5))
 
     crb_va, crb_mimo = calculate_crb(K, L, i_fixed, snr_fixed)
     results[:, 3] = crb_va
     results[:, 4] = crb_mimo
 
     start_time = time.time()
-    for i, err_std in enumerate(error_range):
+
+    # --- 2. 修正点：循环变量改为 variance ---
+    for i, variance in enumerate(variance_range):
+
+        # --- 3. 修正点：在仿真前计算标准差 (std_dev) ---
+        std_dev = np.sqrt(variance)
+
         mse_mc = np.zeros((N_MONTE_CARLO, 3))
         for mc in range(N_MONTE_CARLO):
-            mse_mc[mc, :] = run_single_simulation(K, L, i_fixed, snr_fixed, err_std)
+            # --- 4. 修正点：传入 std_dev ---
+            mse_mc[mc, :] = run_single_simulation(K, L, i_fixed, snr_fixed, std_dev)
+
         results[i, 0:3] = np.mean(mse_mc, axis=0)
-        print(f"  Error StdDev = {err_std:.2f} complete ({i+1}/{len(error_range)})")
+        print(f"   Error Variance = {variance:.2f} (StdDev = {std_dev:.2f}) complete ({i+1}/{len(variance_range)})")
 
     plt.figure()
-    plt.plot(error_range, results[:, 0], 'o--', label='Scheme 1 (VA - Angle Known)')
-    plt.plot(error_range, results[:, 1], 's-', label='Scheme 2 (MIMO - Angle Known)')
-    plt.plot(error_range, results[:, 2], 'x:', label='Scheme 3 (ILS - Angle Unknown)')
-    plt.plot(error_range, results[:, 3], 'k--', label='CRB (VA)')
-    plt.plot(error_range, results[:, 4], 'k-', label='CRB (MIMO)')
 
-    plt.xlabel('True Channel Error Standard Deviation (Error StdDev)')
+    # --- 5. 修正点：绘图的 X 轴使用 variance_range ---
+    plt.plot(variance_range, results[:, 0], 'o--', label='Scheme 1 (VA - Angle Known)')
+    plt.plot(variance_range, results[:, 1], 's-', label='Scheme 2 (MIMO - Angle Known)')
+    plt.plot(variance_range, results[:, 2], 'x:', label='Scheme 3 (ILS - Angle Unknown)')
+    plt.plot(variance_range, results[:, 3], 'k--', label='CRB (VA)')
+    plt.plot(variance_range, results[:, 4], 'k-', label='CRB (MIMO)')
+
+    # --- 6. 修正点：修改 X 轴标签 ---
+    plt.xlabel('True Channel Error Variance (Error Var, $\sigma_{\gamma}^2$)')
     plt.ylabel('Channel Error MSE (log scale)')
     plt.title(f'Calibration Performance vs. True Error Magnitude (SNR={snr_fixed}dB, I={i_fixed})')
     plt.yscale('log')
@@ -371,11 +389,12 @@ def plot_vs_error_magnitude(K, L, snr_fixed, i_fixed):
     plt.savefig('mse_vs_error_magnitude.png')
     print(f"Plot 3 saved to: mse_vs_error_magnitude.png")
 
-    # <-- 新增：保存 CSV -->
+    # <-- 修正 CSV 保存 -->
     csv_filename = 'results_vs_error_magnitude.csv'
-    df_data = np.hstack([error_range.reshape(-1, 1), results])
+    # --- 7. 修正点：保存 variance_range ---
+    df_data = np.hstack([variance_range.reshape(-1, 1), results])
     df = pd.DataFrame(df_data, columns=[
-        'Error_StdDev', 'MSE_VA', 'MSE_MIMO', 'MSE_ILS', 'CRB_VA', 'CRB_MIMO'
+        'Error_Variance', 'MSE_VA', 'MSE_MIMO', 'MSE_ILS', 'CRB_VA', 'CRB_MIMO'
     ])
     df.to_csv(csv_filename, index=False)
     print(f"Data for Plot 3 saved to: {csv_filename} (Time: {time.time() - start_time:.2f}s)")
@@ -389,13 +408,14 @@ def main_plotter():
 
     # 固定的仿真参数
     I_FIXED = 6         # (I < M-1 = 11)
-    SNR_FIXED = 20      # 20 dB
+    SNR_FIXED1 = 20      # 20 dB
+    SNR_FIXED2 = 15      # 20 dB
     ERROR_FIXED = 0.2   # 真实误差的标准差
 
     # 运行三个绘图函数
-    plot_vs_snr(K, L, I_FIXED, ERROR_FIXED)
-    plot_vs_observations(K, L, SNR_FIXED, ERROR_FIXED)
-    plot_vs_error_magnitude(K, L, SNR_FIXED, I_FIXED)
+    #plot_vs_snr(K, L, I_FIXED, ERROR_FIXED)
+    plot_vs_observations(K, L, SNR_FIXED1, ERROR_FIXED)
+    #plot_vs_error_magnitude(K, L, SNR_FIXED2, I_FIXED)
 
     print("\n====== Simulation Finished ======")
     print("All plots (.png) and data files (.csv) have been saved to the working directory.")
