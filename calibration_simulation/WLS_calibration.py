@@ -4,6 +4,7 @@ import pandas as pd
 import warnings
 
 # --- 1. 核心算法：标准 LS/ALS ---
+# (此函数与之前版本相同，保持不变)
 def calibrate_ls(z_obs):
     K, L = z_obs.shape
     y = np.abs(z_obs)
@@ -46,21 +47,32 @@ def calibrate_ls(z_obs):
     return alpha_tx_est, alpha_rx_est, phi_tx_est, phi_rx_est
 
 # --- 2. 核心算法：加权 WLS/W-ALS ---
-def calibrate_wls(z_obs, noise_var_snapshot, n_obs):
+# [MODIFIED] 此函数现在接收一个 (K,L) 噪声方差 *矩阵*
+def calibrate_wls(z_obs, noise_var_matrix_snapshot, n_obs):
+    """
+    使用加权最小二乘法 (W-ALS/WLS)
+    接收一个 (K,L) 噪声方差矩阵
+    """
     K, L = z_obs.shape
-    noise_var_avg = noise_var_snapshot / n_obs
+
+    # 2a. 权重计算 (现在是矩阵运算)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
+        # [MODIFIED] 噪声方差是异质的
+        noise_var_avg = noise_var_matrix_snapshot / n_obs
         w = (np.abs(z_obs)**2 - noise_var_avg) / noise_var_avg
+
     w = np.maximum(w, 1e-3)
     w = np.nan_to_num(w, nan=1e-3, posinf=1e5, neginf=1e-3)
 
+    # 2b. 幅度校准 (简化版)
     y = np.abs(z_obs)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
         alpha_tx_est = y[:, 0] / y[0, 0]
         alpha_rx_est = y[0, :] / y[0, 0]
 
+    # 2c. 相位校准 (WLS)
     theta = np.angle(z_obs)
     theta_ref = theta[0, 0]
     num_unknowns = (K - 1) + (L - 1)
@@ -78,11 +90,13 @@ def calibrate_wls(z_obs, noise_var_snapshot, n_obs):
         for j in range(L):
             if i == 0 and j == 0:
                 continue
+
             if i > 0:
                 A[eq_idx, i - 1] = 1.0
             if j > 0:
                 A[eq_idx, (K - 1) + j - 1] = 1.0
             b[eq_idx] = np.angle(np.exp(1j * (theta[i, j] - theta_ref)))
+            # [MODIFIED] w[i, j] 现在是异质的，WLS 开始发挥作用
             W_diag[eq_idx] = w[i, j]
             eq_idx += 1
 
@@ -102,8 +116,15 @@ def calibrate_wls(z_obs, noise_var_snapshot, n_obs):
 
     return alpha_tx_est, alpha_rx_est, phi_tx_est, phi_rx_est
 
+
 # --- 3. 仿真数据生成器 ---
-def generate_data(K, L, true_amp_tx, true_amp_rx, true_phase_tx, true_phase_rx, snr_db, n_obs):
+# [MODIFIED] 此函数现在生成异质噪声
+def generate_data(K, L, true_amp_tx, true_amp_rx, true_phase_tx, true_phase_rx,
+                  snr_db, n_obs, noise_std_ratio_per_rx):
+    """
+    生成仿真的观测数据 z_obs 和 (K,L) 噪声方差矩阵
+    noise_std_ratio_per_rx: 列表，定义每个RX通道的噪声标准差*相对*比例
+    """
     s = 1.0 + 0.0j
     z_ideal = np.zeros((K, L), dtype=complex)
     for i in range(K):
@@ -112,23 +133,45 @@ def generate_data(K, L, true_amp_tx, true_amp_rx, true_phase_tx, true_phase_rx, 
             gamma_rx = true_amp_rx[j] * np.exp(1j * true_phase_rx[j])
             z_ideal[i, j] = gamma_tx * gamma_rx * s
 
-    signal_power = np.abs(z_ideal[0, 0])**2
+    # [MODIFIED] 噪声计算
+    # 1. 计算基准噪声 (SNR 基于 RX0 通道)
+    signal_power_ref = np.abs(z_ideal[0, 0])**2
     snr_linear = 10**(snr_db / 10.0)
-    noise_var_snapshot = signal_power / snr_linear
-    noise_std_snapshot = np.sqrt(noise_var_snapshot / 2.0)
+    noise_var_snapshot_ref = signal_power_ref / snr_linear
+    noise_std_snapshot_ref = np.sqrt(noise_var_snapshot_ref / 2.0)
 
+    # 2. [NEW] 创建一个 (K,L) 的噪声标准差矩阵
+    noise_std_matrix = np.zeros((K, L))
+    noise_var_matrix_snapshot = np.zeros((K, L))
+
+    for j in range(L):
+        # 为 RX 通道 j 设置噪声水平
+        ratio = noise_std_ratio_per_rx[j]
+        std_j = noise_std_snapshot_ref * ratio
+        var_j = std_j**2 * 2 # 恢复复数噪声方差 (I=std^2, Q=std^2)
+
+        noise_std_matrix[:, j] = std_j
+        noise_var_matrix_snapshot[:, j] = var_j
+
+    # 3. 累加 n_obs 次 Chirp
     z_obs_total = np.zeros((K, L), dtype=complex)
     for _ in range(n_obs):
-        noise_i = np.random.normal(0, noise_std_snapshot, (K, L))
-        noise_q = np.random.normal(0, noise_std_snapshot, (K, L))
+        # [NEW] 按通道标准差生成噪声
+        noise_i = np.random.normal(0, 1.0, (K, L)) * noise_std_matrix
+        noise_q = np.random.normal(0, 1.0, (K, L)) * noise_std_matrix
         noise = noise_i + 1j * noise_q
         z_obs_total += (z_ideal + noise)
 
+    # 4. 取平均
     z_obs_avg = z_obs_total / n_obs
 
-    return z_obs_avg, noise_var_snapshot
+    # 5. [MODIFIED] 返回噪声方差矩阵
+    return z_obs_avg, noise_var_matrix_snapshot
+
 
 # --- 4. CRB 计算函数 ---
+# (此函数与之前版本相同，保持不变)
+# (CRB 仍基于参考通道的 SNR 计算，作为一个理论基准)
 def calculate_crb(K, L, snr_db_snapshot, n_obs):
     if K <= 0 or L <= 0 or (K == 1 and L == 1):
         return 1e3, 1e3
@@ -148,6 +191,7 @@ def calculate_crb(K, L, snr_db_snapshot, n_obs):
     return crb_avg_mse, crb_avg_mse
 
 # --- 5. 绘图与保存函数 ---
+# (此函数与之前版本相同，保持不变)
 def plot_and_save_results(x_data, mse_results, x_label, title):
     try:
         data_to_save = {
@@ -195,15 +239,17 @@ def plot_and_save_results(x_data, mse_results, x_label, title):
     png_filename = title.lower().replace(" ", "_").replace(":", "").replace(".", "") + ".png"
     plt.savefig(png_filename)
     print(f"Plot image successfully saved to {png_filename}")
-    # plt.show() # 在 VM 或服务器环境中注释掉 show()
+    # plt.show()
 
 # --- 6. 仿真主循环 ---
-def run_simulation_mse(K, L, n_monte_carlo, default_snr, default_err_amp, default_err_phase, default_n_obs):
+# [MODIFIED] 传入异质噪声参数
+def run_simulation_mse(K, L, n_monte_carlo, default_snr, default_err_amp, default_err_phase, default_n_obs,
+                       noise_std_ratio_per_rx):
 
     warnings.filterwarnings('ignore')
 
     # --- 实验一: MSE vs. SNR ---
-    print("\n--- Running Experiment 1: MSE vs. SNR ---")
+    print(f"\n--- Running Experiment 1: MSE vs. SNR (Noise Ratio: {noise_std_ratio_per_rx}) ---")
     snr_db_range = np.linspace(0, 40, 21)
     mse_results_snr = {k: [] for k in ['ls_amp', 'ls_phase', 'wls_amp', 'wls_phase', 'crb_amp', 'crb_phase']}
 
@@ -217,9 +263,13 @@ def run_simulation_mse(K, L, n_monte_carlo, default_snr, default_err_amp, defaul
         true_phase_rx = np.array([0.0] + [np.random.normal(0.0, default_err_phase) for _ in range(L-1)])
 
         for _ in range(n_monte_carlo):
-            z_obs, noise_var = generate_data(K, L, true_amp_tx, true_amp_rx, true_phase_tx, true_phase_rx, snr_db, default_n_obs)
+            # [MODIFIED] 传递异质噪声参数
+            z_obs, noise_var_matrix = generate_data(K, L, true_amp_tx, true_amp_rx, true_phase_tx, true_phase_rx,
+                                                    snr_db, default_n_obs, noise_std_ratio_per_rx)
+
             ls_a_tx, ls_a_rx, ls_p_tx, ls_p_rx = calibrate_ls(z_obs)
-            wls_a_tx, wls_a_rx, wls_p_tx, wls_p_rx = calibrate_wls(z_obs, noise_var, default_n_obs)
+            # [MODIFIED] 传递异质噪声矩阵
+            wls_a_tx, wls_a_rx, wls_p_tx, wls_p_rx = calibrate_wls(z_obs, noise_var_matrix, default_n_obs)
 
             se_ls_amp += np.sum((ls_a_tx - true_amp_tx)**2) + np.sum((ls_a_rx - true_amp_rx)**2)
             se_wls_amp += np.sum((wls_a_tx - true_amp_tx)**2) + np.sum((wls_a_rx - true_amp_rx)**2)
@@ -238,7 +288,7 @@ def run_simulation_mse(K, L, n_monte_carlo, default_snr, default_err_amp, defaul
     plot_and_save_results(snr_db_range, mse_results_snr, "SNR (dB)", "Experiment 1: MSE vs. SNR")
 
     # --- 实验二: MSE vs. 误差大小 ---
-    print("\n--- Running Experiment 2: MSE vs. Error Magnitude ---")
+    print(f"\n--- Running Experiment 2: MSE vs. Error Magnitude (Noise Ratio: {noise_std_ratio_per_rx}) ---")
     err_phase_range_deg = np.linspace(0, 45, 16)
     err_phase_range_rad = np.deg2rad(err_phase_range_deg)
     mse_results_err = {k: [] for k in ['ls_amp', 'ls_phase', 'wls_amp', 'wls_phase', 'crb_amp', 'crb_phase']}
@@ -255,10 +305,12 @@ def run_simulation_mse(K, L, n_monte_carlo, default_snr, default_err_amp, defaul
             true_phase_tx = np.array([0.0] + [np.random.normal(0.0, err_phase) for _ in range(K-1)])
             true_phase_rx = np.array([0.0] + [np.random.normal(0.0, err_phase) for _ in range(L-1)])
 
-            z_obs, noise_var = generate_data(K, L, true_amp_tx, true_amp_rx, true_phase_tx, true_phase_rx, default_snr, default_n_obs)
+            # [MODIFIED] 传递异质噪声参数
+            z_obs, noise_var_matrix = generate_data(K, L, true_amp_tx, true_amp_rx, true_phase_tx, true_phase_rx,
+                                                    default_snr, default_n_obs, noise_std_ratio_per_rx)
 
             ls_a_tx, ls_a_rx, ls_p_tx, ls_p_rx = calibrate_ls(z_obs)
-            wls_a_tx, wls_a_rx, wls_p_tx, wls_p_rx = calibrate_wls(z_obs, noise_var, default_n_obs)
+            wls_a_tx, wls_a_rx, wls_p_tx, wls_p_rx = calibrate_wls(z_obs, noise_var_matrix, default_n_obs)
 
             se_ls_amp += np.sum((ls_a_tx - true_amp_tx)**2) + np.sum((ls_a_rx - true_amp_rx)**2)
             se_wls_amp += np.sum((wls_a_tx - true_amp_tx)**2) + np.sum((wls_a_rx - true_amp_rx)**2)
@@ -277,7 +329,7 @@ def run_simulation_mse(K, L, n_monte_carlo, default_snr, default_err_amp, defaul
     plot_and_save_results(err_phase_range_deg, mse_results_err, "Error Magnitude (Phase StDev, deg)", "Experiment 2: MSE vs. Error Magnitude")
 
     # --- 实验三: MSE vs. 观测次数 (Chirp 累计) ---
-    print("\n--- Running Experiment 3: MSE vs. Number of Observations ---")
+    print(f"\n--- Running Experiment 3: MSE vs. Number of Observations (Noise Ratio: {noise_std_ratio_per_rx}) ---")
     n_obs_range = np.arange(1, 21)
     mse_results_obs = {k: [] for k in ['ls_amp', 'ls_phase', 'wls_amp', 'wls_phase', 'crb_amp', 'crb_phase']}
 
@@ -291,10 +343,12 @@ def run_simulation_mse(K, L, n_monte_carlo, default_snr, default_err_amp, defaul
         crb_amp, crb_phase = calculate_crb(K, L, default_snr, n_obs)
 
         for _ in range(n_monte_carlo):
-            z_obs, noise_var = generate_data(K, L, true_amp_tx_fixed, true_amp_rx_fixed, true_phase_tx_fixed, true_phase_rx_fixed, default_snr, n_obs)
+            # [MODIFIED] 传递异质噪声参数
+            z_obs, noise_var_matrix = generate_data(K, L, true_amp_tx_fixed, true_amp_rx_fixed, true_phase_tx_fixed, true_phase_rx_fixed,
+                                                    default_snr, n_obs, noise_std_ratio_per_rx)
 
             ls_a_tx, ls_a_rx, ls_p_tx, ls_p_rx = calibrate_ls(z_obs)
-            wls_a_tx, wls_a_rx, wls_p_tx, wls_p_rx = calibrate_wls(z_obs, noise_var, n_obs)
+            wls_a_tx, wls_a_rx, wls_p_tx, wls_p_rx = calibrate_wls(z_obs, noise_var_matrix, n_obs)
 
             se_ls_amp += np.sum((ls_a_tx - true_amp_tx_fixed)**2) + np.sum((ls_a_rx - true_amp_rx_fixed)**2)
             se_wls_amp += np.sum((wls_a_tx - true_amp_tx_fixed)**2) + np.sum((wls_a_rx - true_amp_rx_fixed)**2)
@@ -313,30 +367,25 @@ def run_simulation_mse(K, L, n_monte_carlo, default_snr, default_err_amp, defaul
     plot_and_save_results(n_obs_range, mse_results_obs, "Number of Observations (Chirps)", "Experiment 3: MSE vs. N_obs")
 
 
-# --- [NEW] 实验四: 波束图对比 ---
-def run_simulation_beampattern(K, L, default_snr, default_err_amp, default_err_phase, default_n_obs):
-    """
-    生成一个对比波束图，展示 "未校准" vs "LS" vs "WLS" 的效果
-    """
-    print("\n--- Running Experiment 4: Beampattern Comparison ---")
+# --- 实验四: 波束图对比 ---
+# [MODIFIED] 传入异质噪声参数
+def run_simulation_beampattern(K, L, default_snr, default_err_amp, default_err_phase, default_n_obs,
+                               noise_std_ratio_per_rx):
+    print(f"\n--- Running Experiment 4: Beampattern Comparison (Noise Ratio: {noise_std_ratio_per_rx}) ---")
 
-    # 1. 定义虚拟阵列 (假设为标准 0.5*lambda ULA)
-    # Tx @ [0, 2d], Rx @ [0, d] (d=0.5*lambda) -> V_Rx @ [0, d, 2d, 3d]
+    # 1. 定义虚拟阵列
     M = K * L
-    d_lambda = 0.5 # 阵元间距 (单位: 波长)
-    # 计算2T2R的虚拟阵元位置
-    tx_pos = np.array([0, 2]) # 假设Tx在 0, 2d
-    rx_pos = np.array([0, 1]) # 假设Rx在 0, d
+    d_lambda = 0.5
+    tx_pos = np.arange(K) * L
+    rx_pos = np.arange(L)
     v_pos = np.array([i+j for i in tx_pos for j in rx_pos]) * d_lambda
-    # v_pos = [0, 1, 2, 3] * d_lambda
 
-    # 2. 生成一组固定的 "真实误差"
+    # 2. 生成 "真实误差"
     true_amp_tx = np.array([1.0] + [np.random.normal(1.0, default_err_amp) for _ in range(K-1)])
     true_amp_rx = np.array([1.0] + [np.random.normal(1.0, default_err_amp) for _ in range(L-1)])
     true_phase_tx = np.array([0.0] + [np.random.normal(0.0, default_err_phase) for _ in range(K-1)])
     true_phase_rx = np.array([0.0] + [np.random.normal(0.0, default_err_phase) for _ in range(L-1)])
 
-    # 将 Tx/Rx 误差映射到 M 个虚拟通道
     true_gamma = np.zeros(M, dtype=complex)
     k = 0
     for i in range(K):
@@ -345,15 +394,15 @@ def run_simulation_beampattern(K, L, default_snr, default_err_amp, default_err_p
                             (true_amp_rx[j] * np.exp(1j * true_phase_rx[j]))
             k += 1
 
-    # 3. 生成观测数据 z_obs (用于校准)
-    z_obs, noise_var = generate_data(K, L, true_amp_tx, true_amp_rx, true_phase_tx, true_phase_rx,
-                                     default_snr, default_n_obs)
+    # 3. [MODIFIED] 生成 *异质噪声* 的观测数据
+    z_obs, noise_var_matrix = generate_data(K, L, true_amp_tx, true_amp_rx, true_phase_tx, true_phase_rx,
+                                            default_snr, default_n_obs, noise_std_ratio_per_rx)
 
     # 4. 运行 LS 和 WLS 校准
     ls_a_tx, ls_a_rx, ls_p_tx, ls_p_rx = calibrate_ls(z_obs)
-    wls_a_tx, wls_a_rx, wls_p_tx, wls_p_rx = calibrate_wls(z_obs, noise_var, default_n_obs)
+    wls_a_tx, wls_a_rx, wls_p_tx, wls_p_rx = calibrate_wls(z_obs, noise_var_matrix, default_n_obs)
 
-    # 5. 将估计的 Tx/Rx 误差映射到 M 个虚拟通道
+    # 5. 映射估计误差
     ls_gamma_est = np.zeros(M, dtype=complex)
     wls_gamma_est = np.zeros(M, dtype=complex)
     k = 0
@@ -369,24 +418,28 @@ def run_simulation_beampattern(K, L, default_snr, default_err_amp, default_err_p
     angles_deg = np.linspace(-90, 90, 401)
     angles_rad = np.deg2rad(angles_deg)
 
-    # 理想导向矢量 (Steering Vector)
-    # a(theta) = exp(j * 2 * pi * v_pos * sin(theta))
     steering_vectors = np.exp(1j * 2 * np.pi * np.outer(v_pos, np.sin(angles_rad)))
 
-    # a. 理想 (Ideal): gamma = 1
+    # a. 理想
     gamma_ideal = np.ones(M, dtype=complex)
     bp_ideal = np.abs(gamma_ideal @ steering_vectors)
 
-    # b. 未校准 (Uncalibrated): gamma = true_gamma
+    # b. 未校准
     gamma_uncal = true_gamma
     bp_uncal = np.abs(gamma_uncal @ steering_vectors)
 
-    # c. LS 校准: gamma = true_gamma / est_gamma_ls
-    gamma_ls_cal = true_gamma / ls_gamma_est
+    # c. LS 校准 (残余误差)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        gamma_ls_cal = true_gamma / ls_gamma_est
+    gamma_ls_cal = np.nan_to_num(gamma_ls_cal, nan=1.0)
     bp_ls_cal = np.abs(gamma_ls_cal @ steering_vectors)
 
-    # d. WLS 校准: gamma = true_gamma / est_gamma_wls
-    gamma_wls_cal = true_gamma / wls_gamma_est
+    # d. WLS 校准 (残余误差)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        gamma_wls_cal = true_gamma / wls_gamma_est
+    gamma_wls_cal = np.nan_to_num(gamma_wls_cal, nan=1.0)
     bp_wls_cal = np.abs(gamma_wls_cal @ steering_vectors)
 
     # 7. 归一化并绘图
@@ -403,7 +456,7 @@ def run_simulation_beampattern(K, L, default_snr, default_err_amp, default_err_p
 
     plt.xlabel("Angle (degrees)")
     plt.ylabel("Normalized Beampattern (dB)")
-    plt.title(f"Experiment 4: Beampattern Comparison (SNR={default_snr}dB)")
+    plt.title(f"Experiment 4: Beampattern Comparison (SNR={default_snr}dB, N_obs={default_n_obs})")
     plt.legend()
     plt.grid(True)
     plt.ylim([-50, 1])
@@ -438,19 +491,27 @@ if __name__ == "__main__":
     N_MONTE_CARLO = 500  # Monte-Carlo 仿真次数
 
     # --- 实验的默认值 ---
-    DEFAULT_SNR_DB = 20.0       # 默认信噪比
+    DEFAULT_SNR_DB = 10.0       # 默认信噪比 (用于实验 2, 3)
     DEFAULT_ERR_PHASE = np.deg2rad(20.0) # 默认相位误差标准差 (20度)
     DEFAULT_ERR_AMP = 0.20      # 默认幅度误差标准差 (0.20)
-    DEFAULT_N_OBS = 1           # 默认观测次数
+    DEFAULT_N_OBS = 1           # 默认观测次数 (用于实验 1, 2)
+
+    # --- [NEW] 定义异质噪声 ---
+    # 假设 RX0 (j=0) 噪声标准差比例为 1.0
+    # 假设 RX1 (j=1) 噪声标准差比例为 5.0 (即 25倍 噪声功率)
+    NOISE_STD_RATIO_PER_RX = [1.0, 5.0]
+    # (如果想恢复成您之前的数据, 设为 [1.0, 1.0])
 
     print("Starting simulation...")
 
     # 运行三个 MSE 实验
     run_simulation_mse(K_TX, L_RX, N_MONTE_CARLO,
-                       DEFAULT_SNR_DB, DEFAULT_ERR_AMP, DEFAULT_ERR_PHASE, DEFAULT_N_OBS)
+                       DEFAULT_SNR_DB, DEFAULT_ERR_AMP, DEFAULT_ERR_PHASE, DEFAULT_N_OBS,
+                       NOISE_STD_RATIO_PER_RX)
 
     # 运行波束图对比实验
     run_simulation_beampattern(K_TX, L_RX, DEFAULT_SNR_DB,
-                               DEFAULT_ERR_AMP, DEFAULT_ERR_PHASE, DEFAULT_N_OBS)
+                               DEFAULT_ERR_AMP, DEFAULT_ERR_PHASE, DEFAULT_N_OBS,
+                               NOISE_STD_RATIO_PER_RX)
 
     print("\nSimulation finished. All CSV and PNG files saved.")
