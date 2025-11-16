@@ -15,11 +15,11 @@ L = 4       # L: 接收 (Rx) 天线数量
 M = K * L   # M: 虚拟阵元总数
 
 # ILS 迭代参数
-ILS_ITERATIONS = 15
+ILS_ITERATIONS = 20
 ILS_TOLERANCE = 1e-6
 
 # 蒙特卡洛仿真次数
-N_MONTE_CARLO = 10               # 为使曲线平滑，每个数据点运行50次取平均
+N_MONTE_CARLO = 100               # 为使曲线平滑，每个数据点运行50次取平均
 np.random.seed(0)                   # 固定随机种子
 
 # --- 2. 物理参数 ---
@@ -295,7 +295,7 @@ def plot_vs_observations(K, L, snr_fixed, error_fixed):
     print(f"\n--- Generating Plot 2 (vs. Observations I) ---")
     print(f"Fixed parameters: SNR = {snr_fixed} dB, Error StdDev = {error_fixed}")
     M = K * L
-    i_range = np.arange(max(K,L), 35, 1) # 从 max(K,L) 到 M+4
+    i_range = np.arange(max(K,L), 30, 1) # 从 max(K,L) 到 M+4
     results = np.zeros((len(i_range), 5))
 
     start_time = time.time()
@@ -410,12 +410,12 @@ def main_plotter():
     I_FIXED = 6         # (I < M-1 = 11)
     SNR_FIXED1 = 20      # 20 dB
     SNR_FIXED2 = 15      # 20 dB
-    ERROR_FIXED = 0.2   # 真实误差的标准差
+    ERROR_FIXED = 0.1   # 真实误差的标准差
 
     # 运行三个绘图函数
-    #plot_vs_snr(K, L, I_FIXED, ERROR_FIXED)
+    plot_vs_snr(K, L, I_FIXED, ERROR_FIXED)
     plot_vs_observations(K, L, SNR_FIXED1, ERROR_FIXED)
-    #plot_vs_error_magnitude(K, L, SNR_FIXED2, I_FIXED)
+    plot_vs_error_magnitude(K, L, SNR_FIXED1, I_FIXED)
 
     print("\n====== Simulation Finished ======")
     print("All plots (.png) and data files (.csv) have been saved to the working directory.")
